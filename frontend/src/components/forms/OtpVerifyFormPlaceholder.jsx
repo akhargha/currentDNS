@@ -1,20 +1,41 @@
 function OtpVerifyFormPlaceholder() {
   return (
-    <div className="space-y-4">
-      <h3 className="font-semibold">Verify OTP Placeholder</h3>
-      <label className="form-control w-full">
-        <span className="label-text">6-digit OTP code</span>
-        <input type="text" placeholder="123456" className="input input-bordered w-full" readOnly />
-      </label>
-      <div className="flex gap-2">
-        <button className="btn btn-primary" type="button">
+    <div className="w-full space-y-6">
+      
+      {/* Input Section */}
+      <div className="form-control w-full text-left">
+        <label className="label py-1">
+          <span className="label-text font-bold uppercase text-[10px] opacity-50 tracking-widest">
+            6-Digit OTP Code
+          </span>
+        </label>
+        <input 
+          type="text" 
+          placeholder="123456" 
+          className="input input-bordered w-full font-mono text-center text-xl tracking-[0.3em] focus:border-neutral" 
+        />
+        <label className="label">
+          <span className="label-text-alt opacity-40">Enter the code sent to your email.</span>
+        </label>
+      </div>
+
+      {/* Action Buttons */}
+      <div className="flex flex-col gap-3">
+        <button className="btn btn-neutral w-full" type="button">
           Verify and Sign In
         </button>
-        <button className="btn btn-ghost" type="button">
+        
+        <button className="btn btn-ghost btn-sm text-xs opacity-60 hover:opacity-100" type="button">
           Resend OTP
         </button>
       </div>
-      <p className="text-sm opacity-80">Placeholder: redirect to dashboard on successful OTP.</p>
+
+      {/* Status Placeholder */}
+      <div className="rounded-lg bg-base-200 p-3 border border-base-300/50">
+        <p className="text-[10px] opacity-50 text-center uppercase tracking-tight">
+          System will redirect to dashboard upon successful verification
+        </p>
+      </div>
     </div>
   )
 }
