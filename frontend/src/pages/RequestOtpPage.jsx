@@ -3,12 +3,7 @@ import OtpRequestFormPlaceholder from '../components/forms/OtpRequestFormPlaceho
 
 function RequestOtpPage() {
   return (
-    <AuthCardLayout
-      title="Request OTP"
-      description="Enter your email to receive a one-time login code."
-    >
       <OtpRequestFormPlaceholder />
-    </AuthCardLayout>
   )
 }
 
