@@ -3,16 +3,21 @@ import VerificationStatusPlaceholder from '../components/verification/Verificati
 
 function CheckVerificationPage() {
   return (
-    <section className="space-y-4">
-      <h2 className="text-3xl font-bold">Check DNS Verification</h2>
-      <p className="opacity-80">
-        Placeholder: query DNS and confirm expected TXT token exists.
-      </p>
-      {/* TODO: Call backend endpoint to verify TXT token on button click. */}
-      <VerificationStatusPlaceholder />
-      <Link className="btn btn-primary" to="/signup/monitor-frequency">
-        Continue if Verified
-      </Link>
+    /* Centers the card vertically and horizontally */
+    <section className="flex flex-col items-center justify-center min-h-[70vh]">
+      <div className="w-full max-w-4xl space-y-6">
+        
+        {/* The status card we updated previously */}
+        <VerificationStatusPlaceholder />
+        
+        <div className="flex justify-end">
+          {/* Using btn-neutral to stay consistent with your theme */}
+          <Link className="btn btn-neutral px-10" to="/signup/monitor-frequency">
+            Continue if Verified
+          </Link>
+        </div>
+
+      </div>
     </section>
   )
 }

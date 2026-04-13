@@ -3,13 +3,21 @@ import FrequencySelectorPlaceholder from '../components/forms/FrequencySelectorP
 
 function MonitorFrequencyPage() {
   return (
-    <section className="space-y-4">
-      <h2 className="text-3xl font-bold">Set Monitoring Frequency</h2>
-      <p className="opacity-80">Choose an interval from 6 hours to 1 month.</p>
-      <FrequencySelectorPlaceholder />
-      <Link className="btn btn-primary" to="/dashboard">
-        Continue to Dashboard
-      </Link>
+    /* Centers everything vertically and horizontally */
+    <section className="flex flex-col items-center justify-center min-h-[70vh] text-center">
+      <div className="w-full max-w-4xl space-y-8">
+
+        {/* The Wide Slider Card */}
+        <FrequencySelectorPlaceholder />
+
+        {/* Action Link */}
+        <div className="flex justify-center">
+          <Link className="btn btn-neutral px-12" to="/dashboard">
+            Continue to Dashboard
+          </Link>
+        </div>
+
+      </div>
     </section>
   )
 }
