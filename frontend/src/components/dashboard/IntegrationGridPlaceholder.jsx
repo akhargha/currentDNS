@@ -2,7 +2,14 @@ import { Link } from 'react-router-dom'
 import { integrationTypes } from '../../constants/integrationTypes'
 import IntegrationCardPlaceholder from './IntegrationCardPlaceholder'
 
-function IntegrationGridPlaceholder() {
+function IntegrationGridPlaceholder({ integrations = [] }) {
+  const data = integrations.length
+    ? integrations
+    : integrationTypes.map((item) => ({
+        ...item,
+        status: 'missing',
+      }))
+
   return (
     /* Removed max-w-3xl here so it relies on the IntegrationsPage container */
     <section className="w-full space-y-6">
@@ -17,9 +24,9 @@ function IntegrationGridPlaceholder() {
 
       {/* Grid Layout - 1 col on mobile, 3 cols on desktop */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        {integrationTypes.map((integration) => (
+        {data.map((integration) => (
           <Link 
-            key={integration.id} 
+            key={`${integration.integration_type || integration.id}-${integration.identity_key || 'default'}`}
             to="/dashboard/timeline" 
             className="transition-transform active:scale-95 outline-none block"
           >

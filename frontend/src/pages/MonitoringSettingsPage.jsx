@@ -1,7 +1,69 @@
+/* eslint-disable react-hooks/set-state-in-effect */
+import { useCallback, useEffect, useState } from 'react'
 import FrequencySelectorPlaceholder from '../components/forms/FrequencySelectorPlaceholder'
 import GithubOrgInputPlaceholder from '../components/github/GithubOrgInputPlaceholder'
+import { useAuth } from '../context/AuthContext'
+import { apiRequest } from '../lib/apiClient'
 
 function MonitoringSettingsPage() {
+  const { token } = useAuth()
+  const [domainId, setDomainId] = useState('')
+  const [domainName, setDomainName] = useState('domain.com')
+  const [monitorEmail, setMonitorEmail] = useState('you@domain.com')
+  const [alertsEnabled, setAlertsEnabled] = useState(true)
+  const [message, setMessage] = useState('')
+  const [error, setError] = useState('')
+
+  const loadSettings = useCallback(async () => {
+    try {
+      const response = await apiRequest('/settings/monitoring', { token })
+      setDomainId(response.domain.id)
+      setDomainName(response.domain.domain_name)
+      setMonitorEmail(response.domain.monitor_email)
+      setAlertsEnabled(response.monitoring_preference?.alerts_enabled ?? true)
+    } catch (err) {
+      setError(err.message)
+    }
+  }, [token])
+
+  useEffect(() => {
+    void loadSettings()
+  }, [loadSettings])
+
+  const saveSettings = async (intervalMinutes = 1440) => {
+    try {
+      setError('')
+      const response = await apiRequest('/settings/monitoring', {
+        method: 'PATCH',
+        token,
+        body: {
+          domain_id: domainId,
+          monitor_email: monitorEmail,
+          domain_name: domainName,
+          alerts_enabled: alertsEnabled,
+          interval_minutes: intervalMinutes,
+        },
+      })
+      setMessage(`Settings saved. Interval: ${response.monitoring_preference.interval_minutes} minutes`)
+    } catch (err) {
+      setError(err.message)
+    }
+  }
+
+  const saveGithubOrg = async (orgName) => {
+    try {
+      setError('')
+      await apiRequest('/dashboard/github-org', {
+        method: 'POST',
+        token,
+        body: { domain_id: domainId, org_name: orgName },
+      })
+      setMessage('GitHub organization saved.')
+    } catch (err) {
+      setError(err.message)
+    }
+  }
+
   return (
     /* Centers the layout and matches the vertical flow of the Dashboard/Integrations */
     <section className="flex flex-col items-center justify-start min-h-screen py-8">
@@ -29,7 +91,12 @@ function MonitoringSettingsPage() {
                 <label className="label py-1">
                   <span className="label-text font-bold uppercase text-[10px] opacity-50 tracking-widest">Monitored Domain</span>
                 </label>
-                <input type="text" className="input input-bordered input-md w-full font-mono text-sm" defaultValue="domain.com" />
+                <input
+                  type="text"
+                  className="input input-bordered input-md w-full font-mono text-sm"
+                  value={domainName}
+                  onChange={(event) => setDomainName(event.target.value)}
+                />
               </div>
 
               {/* Monitor Email */}
@@ -37,7 +104,12 @@ function MonitoringSettingsPage() {
                 <label className="label py-1">
                   <span className="label-text font-bold uppercase text-[10px] opacity-50 tracking-widest">Notification Email</span>
                 </label>
-                <input type="email" className="input input-bordered input-md w-full font-mono text-sm" defaultValue="you@domain.com" />
+                <input
+                  type="email"
+                  className="input input-bordered input-md w-full font-mono text-sm"
+                  value={monitorEmail}
+                  onChange={(event) => setMonitorEmail(event.target.value)}
+                />
               </div>
 
               {/* Alert Toggle */}
@@ -46,19 +118,26 @@ function MonitoringSettingsPage() {
                   <p className="text-sm font-bold">Email Alerts</p>
                   <p className="text-[10px] opacity-50">Notify me immediately if a proof is broken.</p>
                 </div>
-                <input type="checkbox" className="toggle toggle-neutral" defaultChecked />
+                <input
+                  type="checkbox"
+                  className="toggle toggle-neutral"
+                  checked={alertsEnabled}
+                  onChange={(event) => setAlertsEnabled(event.target.checked)}
+                />
               </div>
             </div>
 
             <div className="flex justify-center mt-2">
-              <button className="btn btn-neutral btn-sm px-10 h-10">Save Settings</button>
+              <button type="button" className="btn btn-neutral btn-sm px-10 h-10" onClick={() => saveSettings()}>
+                Save Settings
+              </button>
             </div>
           </div>
         </section>
 
         {/* Frequency Section */}
         <div className="w-full">
-          <FrequencySelectorPlaceholder />
+          <FrequencySelectorPlaceholder onSave={saveSettings} />
         </div>
 
         {/* Divider for visual separation */}
@@ -68,8 +147,10 @@ function MonitoringSettingsPage() {
 
         {/* GitHub Org Section */}
         <div className="w-full">
-          <GithubOrgInputPlaceholder />
+          <GithubOrgInputPlaceholder onSave={saveGithubOrg} />
         </div>
+        {message ? <div className="alert alert-success"><span>{message}</span></div> : null}
+        {error ? <div className="alert alert-error"><span>{error}</span></div> : null}
 
       </div>
     </section>

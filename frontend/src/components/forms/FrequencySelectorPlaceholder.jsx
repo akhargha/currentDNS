@@ -1,13 +1,13 @@
 import { useState } from 'react';
 
 const frequencySteps = [
-  { value: 0, label: '6h', human: 'Every 6 hours', color: 'range-success' },
-  { value: 1, label: '1d', human: 'Once a day',    color: 'range-success' },
-  { value: 2, label: '3d', human: 'Every 3 days',  color: 'range-warning' },
-  { value: 3, label: '1w', human: 'Once a week',   color: 'range-error' },
+  { value: 0, label: '6h', human: 'Every 6 hours', color: 'range-success', minutes: 360 },
+  { value: 1, label: '1d', human: 'Once a day', color: 'range-success', minutes: 1440 },
+  { value: 2, label: '3d', human: 'Every 3 days', color: 'range-warning', minutes: 4320 },
+  { value: 3, label: '1w', human: 'Once a week', color: 'range-error', minutes: 10080 },
 ];
 
-function FrequencySelectorPlaceholder() {
+function FrequencySelectorPlaceholder({ onSave, loading }) {
   const [stepIndex, setStepIndex] = useState(1);
   const currentOption = frequencySteps[stepIndex];
 
@@ -60,8 +60,8 @@ function FrequencySelectorPlaceholder() {
 
         {/* Centered Button */}
         <div className="flex justify-center mt-4">
-          <button className="btn btn-neutral px-16" type="button">
-            Save Monitoring Frequency
+          <button className="btn btn-neutral px-16" type="button" onClick={() => onSave(currentOption.minutes)} disabled={loading}>
+            {loading ? 'Saving...' : 'Save Monitoring Frequency'}
           </button>
         </div>
       </div>

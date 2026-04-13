@@ -1,24 +1,24 @@
 import { RefreshCw } from 'lucide-react';
 
-const states = [
-  { 
-    label: 'Pending', 
-    description: 'Awaiting DNS propagation / record check.', 
-    color: 'status-warning', 
-  },
-  { 
-    label: 'Verified', 
-    description: 'Required TXT token found, signup may continue.', 
-    color: 'status-success', 
-  },
-  { 
-    label: 'Failed', 
-    description: 'TXT token missing or incorrect.', 
-    color: 'status-error', 
-  },
-]
+function VerificationStatusPlaceholder({ verificationState, onCheck, loading, records }) {
+  const states = [
+    {
+      label: 'Pending',
+      description: 'Awaiting DNS propagation / record check.',
+      color: verificationState === 'pending' ? 'status-warning' : 'status-neutral',
+    },
+    {
+      label: 'Verified',
+      description: 'Required TXT token found, signup may continue.',
+      color: verificationState === 'verified' ? 'status-success' : 'status-neutral',
+    },
+    {
+      label: 'Failed',
+      description: 'TXT token missing or incorrect.',
+      color: verificationState === 'failed' ? 'status-error' : 'status-neutral',
+    },
+  ]
 
-function VerificationStatusPlaceholder() {
   return (
     <section className="card bg-base-100 border border-base-300 w-full max-w-4xl shadow-sm">
       <div className="card-body p-8 gap-6">
@@ -49,14 +49,24 @@ function VerificationStatusPlaceholder() {
         </div>
 
         <div className="flex flex-col sm:flex-row gap-3 mt-4">
-          <button className="btn btn-neutral flex-1" type="button">
-            I Have Added the TXT Record
+          <button className="btn btn-neutral flex-1" type="button" onClick={onCheck} disabled={loading}>
+            {loading ? 'Checking...' : 'I Have Added the TXT Record'}
           </button>
-          <button className="btn btn-outline flex-1" type="button">
+          <button className="btn btn-outline flex-1" type="button" onClick={onCheck} disabled={loading}>
             <RefreshCw className="w-4 h-4 mr-2" />
             Re-check DNS Verification
           </button>
         </div>
+        {records?.length ? (
+          <div className="mt-2 text-sm">
+            <p className="font-semibold">Observed TXT records:</p>
+            <ul className="list-disc list-inside">
+              {records.map((record) => (
+                <li key={record}>{record}</li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
       </div>
     </section>
   )

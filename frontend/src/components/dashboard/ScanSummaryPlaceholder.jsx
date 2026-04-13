@@ -1,6 +1,11 @@
 import { Globe, Clock, Zap, AlertTriangle, Calendar } from 'lucide-react';
 
-function ScanSummaryPlaceholder() {
+function ScanSummaryPlaceholder({ summary }) {
+  const domain = summary?.domain
+  const pref = summary?.monitoring_preference
+  const integrationCount = summary?.integration_count || 0
+  const brokenCount = summary?.broken_count || 0
+
   return (
     <section className="card bg-base-100 border border-base-300 w-full max-w-4xl shadow-sm">
       <div className="card-body p-8 gap-8">
@@ -22,8 +27,8 @@ function ScanSummaryPlaceholder() {
               <Globe size={24} />
             </div>
             <div className="stat-title text-xs uppercase tracking-widest font-bold">Monitored Target</div>
-            <div className="stat-value text-base mt-1">example.com</div>
-            <div className="stat-desc font-mono">admin@example.com</div>
+            <div className="stat-value text-base mt-1">{domain?.domain_name || 'Not configured'}</div>
+            <div className="stat-desc font-mono">{domain?.monitor_email || '-'}</div>
           </div>
 
           {/* Timing Info */}
@@ -32,9 +37,9 @@ function ScanSummaryPlaceholder() {
               <Clock size={24} />
             </div>
             <div className="stat-title text-xs uppercase tracking-widest font-bold">Last Scan</div>
-            <div className="stat-value text-base mt-1">Oct 24, 14:20</div>
+            <div className="stat-value text-base mt-1">{domain?.updated_at || '-'}</div>
             <div className="stat-desc flex items-center gap-1">
-              <Calendar size={12} /> Next: Oct 25, 14:20
+              <Calendar size={12} /> Next: {pref?.next_run_at || '-'}
             </div>
           </div>
 
@@ -44,8 +49,8 @@ function ScanSummaryPlaceholder() {
               <Zap size={24} />
             </div>
             <div className="stat-title text-xs uppercase tracking-widest font-bold">Integrations</div>
-            <div className="stat-value text-base mt-1">12 Detected</div>
-            <div className="stat-desc text-success font-medium">All active</div>
+            <div className="stat-value text-base mt-1">{integrationCount} Detected</div>
+            <div className="stat-desc text-success font-medium">{brokenCount === 0 ? 'All active' : `${brokenCount} broken`}</div>
           </div>
 
           {/* Alert Status */}
@@ -55,9 +60,9 @@ function ScanSummaryPlaceholder() {
             </div>
             <div className="stat-title text-xs uppercase tracking-widest font-bold">Alert State</div>
             <div className="stat-value text-base mt-1 text-success uppercase font-bold tracking-tight">
-              Healthy
+              {brokenCount === 0 ? 'Healthy' : 'Attention'}
             </div>
-            <div className="stat-desc italic">No broken proofs</div>
+            <div className="stat-desc italic">{brokenCount === 0 ? 'No broken proofs' : 'Action required'}</div>
           </div>
 
         </div>

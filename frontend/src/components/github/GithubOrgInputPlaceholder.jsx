@@ -1,7 +1,7 @@
 import { useState } from 'react';
 
-function GithubOrgInputPlaceholder() {
-  const [org, setOrg] = useState('');
+function GithubOrgInputPlaceholder({ initialOrg = '', onSave, loading }) {
+  const [org, setOrg] = useState(initialOrg);
 
   return (
     <section className="card bg-base-100 border border-base-300 w-full max-w-3xl shadow-sm">
@@ -45,7 +45,7 @@ function GithubOrgInputPlaceholder() {
 
         {/* Centered Button - Reduced top margin */}
         <div className="flex justify-center mt-2">
-          <button className="btn btn-neutral btn-sm px-10 h-10 gap-2" type="button">
+          <button className="btn btn-neutral btn-sm px-10 h-10 gap-2" type="button" onClick={() => onSave(org)} disabled={loading || !org.trim()}>
             <svg 
               xmlns="http://www.w3.org/2000/svg" 
               width="16" 
@@ -61,7 +61,7 @@ function GithubOrgInputPlaceholder() {
               <polyline points="17 21 17 13 7 13 7 21"/>
               <polyline points="7 3 7 8 15 8"/>
             </svg>
-            Save Organization
+            {loading ? 'Saving...' : 'Save Organization'}
           </button>
         </div>
       </div>

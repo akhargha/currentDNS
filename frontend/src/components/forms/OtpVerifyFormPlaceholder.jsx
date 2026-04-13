@@ -1,4 +1,12 @@
-function OtpVerifyFormPlaceholder() {
+function OtpVerifyFormPlaceholder({
+  code,
+  onCodeChange,
+  onSubmit,
+  onResend,
+  loading,
+  message,
+  error,
+}) {
   return (
     <div className="w-full space-y-6">
       
@@ -13,6 +21,8 @@ function OtpVerifyFormPlaceholder() {
           type="text" 
           placeholder="123456" 
           className="input input-bordered w-full font-mono text-center text-xl tracking-[0.3em] focus:border-neutral" 
+          value={code}
+          onChange={(event) => onCodeChange(event.target.value)}
         />
         <label className="label">
           <span className="label-text-alt opacity-40">Enter the code sent to your email.</span>
@@ -21,11 +31,11 @@ function OtpVerifyFormPlaceholder() {
 
       {/* Action Buttons */}
       <div className="flex flex-col gap-3">
-        <button className="btn btn-neutral w-full" type="button">
-          Verify and Sign In
+        <button className="btn btn-neutral w-full" type="button" onClick={onSubmit} disabled={loading}>
+          {loading ? 'Verifying...' : 'Verify and Sign In'}
         </button>
         
-        <button className="btn btn-ghost btn-sm text-xs opacity-60 hover:opacity-100" type="button">
+        <button className="btn btn-ghost btn-sm text-xs opacity-60 hover:opacity-100" type="button" onClick={onResend}>
           Resend OTP
         </button>
       </div>
@@ -33,9 +43,10 @@ function OtpVerifyFormPlaceholder() {
       {/* Status Placeholder */}
       <div className="rounded-lg bg-base-200 p-3 border border-base-300/50">
         <p className="text-[10px] opacity-50 text-center uppercase tracking-tight">
-          System will redirect to dashboard upon successful verification
+          {message || 'System will redirect to dashboard upon successful verification'}
         </p>
       </div>
+      {error ? <p className="text-sm text-error text-center">{error}</p> : null}
     </div>
   )
 }

@@ -1,4 +1,12 @@
-function SignupFormPlaceholder() {
+function SignupFormPlaceholder({
+  email,
+  domain,
+  onEmailChange,
+  onDomainChange,
+  onSubmit,
+  loading,
+  error,
+}) {
   return (
     <div className="flex justify-center">
       <fieldset className="fieldset bg-base-100 border-base-300 rounded-box w-full max-w-md border p-6 shadow-sm">
@@ -8,7 +16,9 @@ function SignupFormPlaceholder() {
         <input 
           type="email" 
           className="input w-full" 
-          placeholder="abc@example.com" 
+          placeholder="abc@example.com"
+          value={email}
+          onChange={(event) => onEmailChange(event.target.value)}
         />
 
         {/* Domain Field */}
@@ -16,7 +26,9 @@ function SignupFormPlaceholder() {
         <input 
           type="text" 
           className="input w-full" 
-          placeholder="example.com" 
+          placeholder="example.com"
+          value={domain}
+          onChange={(event) => onDomainChange(event.target.value)}
         />
 
         {/* Info Alert */}
@@ -26,13 +38,11 @@ function SignupFormPlaceholder() {
 
         {/* Action Buttons */}
         <div className="mt-6 flex flex-col gap-3">
-          <button className="btn btn-neutral w-full" type="button">
-            Continue
-          </button>
-          <button className="btn btn-ghost btn-sm" type="button">
-            Use alternate email with DNS verification
+          <button className="btn btn-neutral w-full" type="button" onClick={onSubmit} disabled={loading}>
+            {loading ? 'Checking...' : 'Continue'}
           </button>
         </div>
+        {error ? <p className="text-sm text-error mt-2">{error}</p> : null}
       </fieldset>
     </div>
   )
