@@ -52,7 +52,7 @@ function DnsInstructionPlaceholder() {
           <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" className="stroke-current shrink-0 w-5 h-5">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
           </svg>
-          <span>Propagation may take a few minutes. Ensure the TXT record is visible globally.</span>
+          <span>It may take a few minutes for the TXT record to propagate.</span>
         </div>
       </div>
     </section>
