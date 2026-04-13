@@ -1,21 +1,18 @@
-import { useState } from 'react';
+import { useState } from 'react'
+import { frequencySteps } from '../../constants/frequencySteps'
 
-const frequencySteps = [
-  { value: 0, label: '6h', human: 'Every 6 hours', color: 'range-success', minutes: 360 },
-  { value: 1, label: '1d', human: 'Once a day', color: 'range-success', minutes: 1440 },
-  { value: 2, label: '3d', human: 'Every 3 days', color: 'range-warning', minutes: 4320 },
-  { value: 3, label: '1w', human: 'Once a week', color: 'range-error', minutes: 10080 },
-];
+function FrequencySelectorPlaceholder({ initialIndex = 1, onSave, loading = false }) {
+  const [stepIndex, setStepIndex] = useState(initialIndex)
+  const currentOption = frequencySteps[stepIndex]
 
-function FrequencySelectorPlaceholder({ onSave, loading }) {
-  const [stepIndex, setStepIndex] = useState(1);
-  const currentOption = frequencySteps[stepIndex];
+  function handleSave() {
+    if (onSave) onSave(currentOption.key)
+  }
 
   return (
     <section className="card bg-base-100 border border-base-300 w-full max-w-4xl shadow-sm">
       <div className="card-body p-10 gap-10">
         
-        {/* Force this div to stay left-aligned */}
         <div className="text-left w-full">
           <h3 className="card-title text-2xl font-bold">Monitoring Frequency</h3>
           <p className="text-sm opacity-60 mt-1">
@@ -24,7 +21,6 @@ function FrequencySelectorPlaceholder({ onSave, loading }) {
         </div>
 
         <div className="flex flex-col items-center py-6">
-          {/* Dynamic Human Text */}
           <div className="text-center mb-12">
             <span className="text-xs uppercase tracking-[0.2em] font-bold opacity-40">Frequency</span>
             <h2 className={`text-5xl font-black mt-2 transition-colors duration-300 ${currentOption.color.replace('range-', 'text-')}`}>
@@ -32,7 +28,6 @@ function FrequencySelectorPlaceholder({ onSave, loading }) {
             </h2>
           </div>
 
-          {/* Range Slider Container */}
           <div className="w-full px-2"> 
             <input 
               type="range" 
@@ -58,15 +53,14 @@ function FrequencySelectorPlaceholder({ onSave, loading }) {
           </div>
         </div>
 
-        {/* Centered Button */}
         <div className="flex justify-center mt-4">
-          <button className="btn btn-neutral px-16" type="button" onClick={() => onSave(currentOption.minutes)} disabled={loading}>
-            {loading ? 'Saving...' : 'Save Monitoring Frequency'}
+          <button className="btn btn-neutral px-16" type="button" onClick={handleSave} disabled={loading}>
+            {loading ? <span className="loading loading-spinner loading-sm"></span> : 'Save Monitoring Frequency'}
           </button>
         </div>
       </div>
     </section>
-  );
+  )
 }
 
-export default FrequencySelectorPlaceholder;
+export default FrequencySelectorPlaceholder

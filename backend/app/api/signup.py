@@ -1,26 +1,47 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
+from app.models.schemas import (
+    SignupRequest,
+    SignupResponse,
+    SendVerificationRequest,
+    CheckVerificationRequest,
+    CheckVerificationResponse,
+    SetFrequencyRequest,
+)
+from app.services import signup_service
 
-from app.models.schemas import DnsCheckIn, DnsEmailIn, FrequencyIn, SignupStartIn, SignupStartOut
-from app.services.signup_service import check_dns_verification, send_dns_verification, set_monitoring_frequency, start_signup
-
-router = APIRouter(prefix="/signup", tags=["signup"])
-
-
-@router.post("/start", response_model=SignupStartOut)
-def start_signup_route(payload: SignupStartIn) -> dict:
-    return start_signup(payload.email, payload.domain)
-
-
-@router.post("/send-dns-verification-email")
-def send_dns_verification_route(payload: DnsEmailIn) -> dict:
-    return send_dns_verification(payload.domain_id)
+router = APIRouter()
 
 
-@router.post("/check-dns-verification")
-def check_dns_verification_route(payload: DnsCheckIn) -> dict:
-    return check_dns_verification(payload.domain_id)
+@router.post("", response_model=SignupResponse)
+async def signup(body: SignupRequest):
+    result = signup_service.create_user(body.email, body.domain)
+    user = result["user"]
+    return SignupResponse(
+        user_id=user["id"],
+        email_matches_domain=result["email_matches_domain"],
+        verification_token=user.get("verification_token"),
+    )
 
 
-@router.post("/set-monitoring-frequency")
-def set_monitoring_frequency_route(payload: FrequencyIn) -> dict:
-    return set_monitoring_frequency(payload.domain_id, payload.interval_minutes)
+@router.post("/send-verification")
+async def send_verification(body: SendVerificationRequest):
+    try:
+        signup_service.send_verification_email(body.user_id)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return {"message": "Verification email sent"}
+
+
+@router.post("/check-verification", response_model=CheckVerificationResponse)
+async def check_verification(body: CheckVerificationRequest):
+    result = signup_service.check_dns_verification(body.user_id)
+    return CheckVerificationResponse(**result)
+
+
+@router.post("/set-frequency")
+async def set_frequency(body: SetFrequencyRequest):
+    valid = {"6h", "1d", "3d", "1w"}
+    if body.frequency not in valid:
+        raise HTTPException(status_code=400, detail=f"frequency must be one of {valid}")
+    signup_service.set_frequency(body.user_id, body.frequency)
+    return {"message": "Monitoring frequency saved"}

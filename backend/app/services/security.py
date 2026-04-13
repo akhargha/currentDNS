@@ -1,36 +1,20 @@
 import hashlib
 import secrets
-from datetime import UTC, datetime, timedelta
-
-from app.config import get_settings
-
-
-def utc_now() -> datetime:
-    return datetime.now(UTC)
+import string
+import random
 
 
-def to_iso(value: datetime) -> str:
-    return value.isoformat()
+def generate_token(nbytes: int = 32) -> str:
+    return secrets.token_urlsafe(nbytes)
 
 
-def hash_value(value: str) -> str:
-    return hashlib.sha256(value.encode("utf-8")).hexdigest()
+def generate_verification_token() -> str:
+    return secrets.token_hex(16)
 
 
-def generate_numeric_code(length: int) -> str:
-    digits = "0123456789"
-    return "".join(secrets.choice(digits) for _ in range(length))
+def generate_otp(length: int = 6) -> str:
+    return "".join(random.choices(string.digits, k=length))
 
 
-def otp_expiry() -> str:
-    settings = get_settings()
-    return to_iso(utc_now() + timedelta(minutes=settings.otp_ttl_minutes))
-
-
-def session_expiry() -> str:
-    settings = get_settings()
-    return to_iso(utc_now() + timedelta(hours=settings.session_ttl_hours))
-
-
-def random_token(size: int = 32) -> str:
-    return secrets.token_urlsafe(size)
+def hash_token(token: str) -> str:
+    return hashlib.sha256(token.encode()).hexdigest()

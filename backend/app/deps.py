@@ -1,12 +1,25 @@
-from fastapi import Depends, HTTPException, status
-from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-
-from app.services.auth_service import get_user_by_token
-
-security = HTTPBearer(auto_error=False)
+from datetime import datetime, timezone
+from fastapi import Header, HTTPException
+from app.services.supabase_client import supabase
 
 
-def get_current_user(credentials: HTTPAuthorizationCredentials | None = Depends(security)) -> dict:
-    if not credentials:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Missing auth token")
-    return get_user_by_token(credentials.credentials)
+async def get_current_user(authorization: str = Header(...)) -> dict:
+    if not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Invalid authorization header")
+
+    token = authorization.removeprefix("Bearer ")
+
+    result = (
+        supabase.table("sessions")
+        .select("*, users(*)")
+        .eq("token", token)
+        .gt("expires_at", datetime.now(timezone.utc).isoformat())
+        .limit(1)
+        .execute()
+    )
+
+    if not result.data:
+        raise HTTPException(status_code=401, detail="Session expired or invalid")
+
+    session = result.data[0]
+    return session["users"]

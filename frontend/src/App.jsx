@@ -1,6 +1,6 @@
 import { Navigate, Route, Routes } from 'react-router-dom'
-import ProtectedRoute from './components/auth/ProtectedRoute'
 import AppShell from './components/layout/AppShell'
+import ProtectedRoute from './components/auth/ProtectedRoute'
 import CheckVerificationPage from './pages/CheckVerificationPage'
 import DashboardPage from './pages/DashboardPage'
 import DnsVerificationPage from './pages/DnsVerificationPage'
@@ -26,38 +26,10 @@ function App() {
         <Route path="/signup/monitor-frequency" element={<MonitorFrequencyPage />} />
         <Route path="/auth/request-otp" element={<RequestOtpPage />} />
         <Route path="/auth/verify-otp" element={<VerifyOtpPage />} />
-        <Route
-          path="/dashboard"
-          element={(
-            <ProtectedRoute>
-              <DashboardPage />
-            </ProtectedRoute>
-          )}
-        />
-        <Route
-          path="/dashboard/integrations"
-          element={(
-            <ProtectedRoute>
-              <IntegrationsPage />
-            </ProtectedRoute>
-          )}
-        />
-        <Route
-          path="/dashboard/timeline"
-          element={(
-            <ProtectedRoute>
-              <TimelinePage />
-            </ProtectedRoute>
-          )}
-        />
-        <Route
-          path="/settings/monitoring"
-          element={(
-            <ProtectedRoute>
-              <MonitoringSettingsPage />
-            </ProtectedRoute>
-          )}
-        />
+        <Route path="/dashboard" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
+        <Route path="/dashboard/integrations" element={<ProtectedRoute><IntegrationsPage /></ProtectedRoute>} />
+        <Route path="/dashboard/timeline" element={<ProtectedRoute><TimelinePage /></ProtectedRoute>} />
+        <Route path="/settings/monitoring" element={<ProtectedRoute><MonitoringSettingsPage /></ProtectedRoute>} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </AppShell>

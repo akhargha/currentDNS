@@ -1,41 +1,35 @@
 from contextlib import asynccontextmanager
-
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.auth import router as auth_router
-from app.api.dashboard import router as dashboard_router
-from app.api.settings import router as settings_router
-from app.api.signup import router as signup_router
-from app.config import get_settings
-from app.services.scheduler import start_scheduler, stop_scheduler
-
-settings = get_settings()
+from app.config import settings
+from app.api import auth, signup, dashboard, settings as settings_router
+from app.services.scheduler import start_scheduler, shutdown_scheduler
 
 
 @asynccontextmanager
-async def lifespan(_: FastAPI):
+async def lifespan(app: FastAPI):
     start_scheduler()
     yield
-    stop_scheduler()
+    shutdown_scheduler()
 
 
 app = FastAPI(title=settings.app_name, lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.cors_origin_list,
+    allow_origins=[o.strip() for o in settings.cors_origins.split(",")],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-app.include_router(auth_router)
-app.include_router(signup_router)
-app.include_router(dashboard_router)
-app.include_router(settings_router)
+app.include_router(auth.router, prefix="/api/auth", tags=["auth"])
+app.include_router(signup.router, prefix="/api/signup", tags=["signup"])
+app.include_router(dashboard.router, prefix="/api/dashboard", tags=["dashboard"])
+app.include_router(settings_router.router, prefix="/api/settings", tags=["settings"])
 
 
-@app.get("/health")
-def health() -> dict:
+@app.get("/api/health")
+async def health():
     return {"status": "ok"}

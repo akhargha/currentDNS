@@ -1,91 +1,67 @@
-from fastapi import HTTPException, status
-
-from app.config import get_settings
-from app.services.email_service import send_otp_email
-from app.services.security import generate_numeric_code, hash_value, otp_expiry, random_token, session_expiry, utc_now
-from app.services.supabase_client import get_supabase
+from datetime import datetime, timedelta, timezone
+from app.config import settings
+from app.services.supabase_client import supabase
+from app.services.security import generate_otp, generate_token
 
 
-def _get_or_create_user(email: str) -> dict:
-    supabase = get_supabase()
-    existing = supabase.table("users").select("*").eq("email", email).limit(1).execute().data
-    if existing:
-        return existing[0]
-    created = supabase.table("users").insert({"email": email}).execute().data
-    return created[0]
+def create_otp(user_id: str) -> str:
+    code = generate_otp(settings.otp_code_length)
+    expires_at = datetime.now(timezone.utc) + timedelta(minutes=settings.otp_ttl_minutes)
+
+    supabase.table("otp_codes").insert({
+        "user_id": user_id,
+        "code": code,
+        "expires_at": expires_at.isoformat(),
+    }).execute()
+
+    return code
 
 
-def request_otp(email: str) -> dict:
-    supabase = get_supabase()
-    settings = get_settings()
-    _get_or_create_user(email)
-
-    code = generate_numeric_code(settings.otp_code_length)
-    supabase.table("otp_codes").insert(
-        {
-            "email": email,
-            "code_hash": hash_value(code),
-            "expires_at": otp_expiry(),
-        }
-    ).execute()
-
-    send_otp_email(email, code)
-    return {"message": "OTP sent"}
-
-
-def verify_otp(email: str, code: str) -> dict:
-    supabase = get_supabase()
-    now_iso = utc_now().isoformat()
-    otp_rows = (
-        supabase.table("otp_codes")
+def verify_otp(email: str, code: str) -> dict | None:
+    """Verify OTP and return user dict, or None if invalid."""
+    user_result = (
+        supabase.table("users")
         .select("*")
         .eq("email", email)
-        .is_("consumed_at", "null")
-        .gt("expires_at", now_iso)
+        .limit(1)
+        .execute()
+    )
+    if not user_result.data:
+        return None
+    user = user_result.data[0]
+
+    otp_result = (
+        supabase.table("otp_codes")
+        .select("*")
+        .eq("user_id", user["id"])
+        .eq("code", code)
+        .eq("used", False)
+        .gt("expires_at", datetime.now(timezone.utc).isoformat())
         .order("created_at", desc=True)
         .limit(1)
         .execute()
-        .data
     )
-    if not otp_rows:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="OTP expired or not found")
+    if not otp_result.data:
+        return None
 
-    otp_row = otp_rows[0]
-    if otp_row["code_hash"] != hash_value(code):
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid OTP code")
+    # Mark OTP used
+    supabase.table("otp_codes").update({"used": True}).eq("id", otp_result.data[0]["id"]).execute()
 
-    supabase.table("otp_codes").update({"consumed_at": now_iso}).eq("id", otp_row["id"]).execute()
-    user = _get_or_create_user(email)
-
-    raw_token = random_token(24)
-    supabase.table("sessions").insert(
-        {
-            "user_id": user["id"],
-            "token_hash": hash_value(raw_token),
-            "expires_at": session_expiry(),
-        }
-    ).execute()
-
-    return {"token": raw_token, "user_id": user["id"], "email": user["email"]}
+    return user
 
 
-def get_user_by_token(token: str) -> dict:
-    supabase = get_supabase()
-    now_iso = utc_now().isoformat()
-    session_rows = (
-        supabase.table("sessions")
-        .select("id,user_id")
-        .eq("token_hash", hash_value(token))
-        .is_("revoked_at", "null")
-        .gt("expires_at", now_iso)
-        .limit(1)
-        .execute()
-        .data
-    )
-    if not session_rows:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid session")
-    row = session_rows[0]
-    user_rows = supabase.table("users").select("email").eq("id", row["user_id"]).limit(1).execute().data
-    if not user_rows:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
-    return {"user_id": row["user_id"], "email": user_rows[0]["email"]}
+def create_session(user_id: str) -> str:
+    token = generate_token()
+    expires_at = datetime.now(timezone.utc) + timedelta(hours=settings.session_ttl_hours)
+
+    supabase.table("sessions").insert({
+        "user_id": user_id,
+        "token": token,
+        "expires_at": expires_at.isoformat(),
+    }).execute()
+
+    return token
+
+
+def invalidate_session(token: str):
+    supabase.table("sessions").delete().eq("token", token).execute()

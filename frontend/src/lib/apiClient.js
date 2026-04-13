@@ -1,35 +1,30 @@
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'
+const BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
 
-function getHeaders(token) {
-  const headers = { 'Content-Type': 'application/json' }
-  if (token) {
-    headers.Authorization = `Bearer ${token}`
-  }
-  return headers
+function getToken() {
+  return localStorage.getItem("cdns_token");
 }
 
-export async function apiRequest(path, { method = 'GET', body, token } = {}) {
-  const response = await fetch(`${API_BASE_URL}${path}`, {
+async function request(method, path, body = null) {
+  const headers = { "Content-Type": "application/json" };
+  const token = getToken();
+  if (token) headers["Authorization"] = `Bearer ${token}`;
+
+  const res = await fetch(`${BASE}${path}`, {
     method,
-    headers: getHeaders(token),
+    headers,
     body: body ? JSON.stringify(body) : undefined,
-  })
+  });
 
-  if (!response.ok) {
-    let detail = 'Request failed'
-    try {
-      const payload = await response.json()
-      detail = payload.detail || payload.message || detail
-    } catch {
-      detail = response.statusText || detail
-    }
-    throw new Error(detail)
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: res.statusText }));
+    throw new Error(err.detail || "Request failed");
   }
 
-  if (response.status === 204) {
-    return null
-  }
-  return response.json()
+  return res.json();
 }
 
-export { API_BASE_URL }
+export const api = {
+  get: (path) => request("GET", path),
+  post: (path, body) => request("POST", path, body),
+  put: (path, body) => request("PUT", path, body),
+};

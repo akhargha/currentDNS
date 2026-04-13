@@ -1,61 +1,39 @@
-/* eslint-disable react-refresh/only-export-components */
-import { createContext, useContext, useMemo, useState } from 'react'
-import { apiRequest } from '../lib/apiClient'
+import { useState } from 'react'
+import { AuthContext } from './authContextValue'
 
-const AuthContext = createContext(null)
-const TOKEN_KEY = 'currentdns_token'
-const EMAIL_KEY = 'currentdns_email'
-
-export function AuthProvider({ children }) {
-  const [token, setToken] = useState(localStorage.getItem(TOKEN_KEY))
-  const [email, setEmail] = useState(localStorage.getItem(EMAIL_KEY))
-  const [userId, setUserId] = useState(null)
-
-  const isAuthenticated = Boolean(token)
-
-  const requestOtp = async (emailValue) => apiRequest('/auth/request-otp', { method: 'POST', body: { email: emailValue } })
-
-  const verifyOtp = async (emailValue, code) => {
-    const response = await apiRequest('/auth/verify-otp', {
-      method: 'POST',
-      body: { email: emailValue, code },
-    })
-    setToken(response.token)
-    setEmail(response.email)
-    setUserId(response.user_id)
-    localStorage.setItem(TOKEN_KEY, response.token)
-    localStorage.setItem(EMAIL_KEY, response.email)
-    return response
+function loadInitialUser() {
+  const saved = localStorage.getItem('cdns_user')
+  const tok = localStorage.getItem('cdns_token')
+  if (saved && tok) {
+    try { return JSON.parse(saved) } catch { return null }
   }
-
-  const logout = () => {
-    setToken(null)
-    setEmail(null)
-    setUserId(null)
-    localStorage.removeItem(TOKEN_KEY)
-    localStorage.removeItem(EMAIL_KEY)
-  }
-
-  const value = useMemo(
-    () => ({
-      token,
-      email,
-      userId,
-      isAuthenticated,
-      requestOtp,
-      verifyOtp,
-      logout,
-    }),
-    [token, email, userId, isAuthenticated],
-  )
-
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
+  return null
 }
 
-export function useAuth() {
-  const context = useContext(AuthContext)
-  if (!context) {
-    throw new Error('useAuth must be used within AuthProvider')
+export function AuthProvider({ children }) {
+  const [user, setUser] = useState(loadInitialUser)
+  const [token, setToken] = useState(() => localStorage.getItem('cdns_token'))
+  // #region agent log
+  fetch('http://127.0.0.1:7849/ingest/862d1fd4-dadb-4489-bd16-937c996fefab',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'55a164'},body:JSON.stringify({sessionId:'55a164',location:'AuthContext.jsx:AuthProvider',message:'AuthProvider mounted',data:{hasToken:!!token,hasUser:!!user},timestamp:Date.now(),runId:'post-fix',hypothesisId:'H1'})}).catch(()=>{});
+  // #endregion
+
+  function login(tokenValue, userData) {
+    localStorage.setItem('cdns_token', tokenValue)
+    localStorage.setItem('cdns_user', JSON.stringify(userData))
+    setToken(tokenValue)
+    setUser(userData)
   }
-  return context
+
+  function logout() {
+    localStorage.removeItem('cdns_token')
+    localStorage.removeItem('cdns_user')
+    setToken(null)
+    setUser(null)
+  }
+
+  return (
+    <AuthContext.Provider value={{ user, token, isAuthenticated: !!token, login, logout }}>
+      {children}
+    </AuthContext.Provider>
+  )
 }

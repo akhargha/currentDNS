@@ -1,79 +1,41 @@
-from fastapi import APIRouter, Depends, HTTPException, status
-
+from fastapi import APIRouter, Depends, HTTPException
 from app.deps import get_current_user
-from app.models.schemas import MonitoringSettingsPatchIn
-from app.services.supabase_client import get_supabase
+from app.models.schemas import SettingsResponse, SettingsUpdateRequest
+from app.services.supabase_client import supabase
 
-router = APIRouter(prefix="/settings", tags=["settings"])
+router = APIRouter()
 
-
-def _get_domain_for_user(user_id: str, domain_id: str) -> dict:
-    supabase = get_supabase()
-    rows = (
-        supabase.table("domains")
-        .select("*")
-        .eq("user_id", user_id)
-        .eq("id", domain_id)
-        .limit(1)
-        .execute()
-        .data
-    )
-    if not rows:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Domain not found")
-    return rows[0]
+VALID_FREQUENCIES = {"6h", "1d", "3d", "1w"}
 
 
-@router.get("/monitoring")
-def get_monitoring_settings(current_user: dict = Depends(get_current_user)) -> dict:
-    supabase = get_supabase()
-    domains = (
-        supabase.table("domains")
-        .select("*")
-        .eq("user_id", current_user["user_id"])
-        .order("created_at")
-        .limit(1)
-        .execute()
-        .data
-    )
-    if not domains:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No domain configured")
-    domain = domains[0]
-    pref_rows = supabase.table("monitoring_preferences").select("*").eq("domain_id", domain["id"]).limit(1).execute().data
-    github_orgs = supabase.table("github_orgs").select("*").eq("domain_id", domain["id"]).execute().data
-    return {
-        "domain": domain,
-        "monitoring_preference": pref_rows[0] if pref_rows else None,
-        "github_orgs": github_orgs,
-    }
-
-
-@router.patch("/monitoring")
-def patch_monitoring_settings(payload: MonitoringSettingsPatchIn, current_user: dict = Depends(get_current_user)) -> dict:
-    supabase = get_supabase()
-    domain = _get_domain_for_user(current_user["user_id"], payload.domain_id)
-
-    updated_domain = (
-        supabase.table("domains")
-        .update(
-            {
-                "domain_name": payload.domain_name.lower().strip(),
-                "monitor_email": payload.monitor_email,
-            }
-        )
-        .eq("id", domain["id"])
-        .execute()
-        .data[0]
+@router.get("", response_model=SettingsResponse)
+async def get_settings(user: dict = Depends(get_current_user)):
+    return SettingsResponse(
+        email=user["email"],
+        domain=user["domain"],
+        monitoring_frequency=user.get("monitoring_frequency", "1d"),
+        github_org=user.get("github_org"),
+        alert_enabled=user.get("alert_enabled", True),
     )
 
-    pref_rows = supabase.table("monitoring_preferences").select("*").eq("domain_id", domain["id"]).limit(1).execute().data
-    pref_payload = {
-        "domain_id": domain["id"],
-        "interval_minutes": payload.interval_minutes,
-        "alerts_enabled": payload.alerts_enabled,
-    }
-    if pref_rows:
-        pref = supabase.table("monitoring_preferences").update(pref_payload).eq("id", pref_rows[0]["id"]).execute().data[0]
-    else:
-        pref = supabase.table("monitoring_preferences").insert(pref_payload).execute().data[0]
 
-    return {"domain": updated_domain, "monitoring_preference": pref}
+@router.put("")
+async def update_settings(body: SettingsUpdateRequest, user: dict = Depends(get_current_user)):
+    updates = {}
+
+    if body.monitoring_frequency is not None:
+        if body.monitoring_frequency not in VALID_FREQUENCIES:
+            raise HTTPException(status_code=400, detail=f"frequency must be one of {VALID_FREQUENCIES}")
+        updates["monitoring_frequency"] = body.monitoring_frequency
+
+    if body.github_org is not None:
+        updates["github_org"] = body.github_org
+
+    if body.alert_enabled is not None:
+        updates["alert_enabled"] = body.alert_enabled
+
+    if not updates:
+        return {"message": "Nothing to update"}
+
+    supabase.table("users").update(updates).eq("id", user["id"]).execute()
+    return {"message": "Settings updated"}

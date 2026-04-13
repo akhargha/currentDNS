@@ -1,4 +1,27 @@
-function OtpRequestFormPlaceholder({ email, onEmailChange, onSubmit, loading, message, error }) {
+import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { api } from '../../lib/apiClient'
+
+function OtpRequestFormPlaceholder() {
+  const [email, setEmail] = useState('')
+  const [error, setError] = useState('')
+  const [loading, setLoading] = useState(false)
+  const navigate = useNavigate()
+
+  async function handleSend() {
+    setError('')
+    if (!email) { setError('Email is required.'); return }
+    setLoading(true)
+    try {
+      await api.post('/api/auth/request-otp', { email })
+      navigate(`/auth/verify-otp?email=${encodeURIComponent(email)}`)
+    } catch (e) {
+      setError(e.message)
+    } finally {
+      setLoading(false)
+    }
+  }
+
   return (
     <div className="flex justify-center">
       <fieldset className="fieldset bg-base-100 border-base-300 rounded-box w-full max-w-md border p-6 shadow-sm">
@@ -11,22 +34,26 @@ function OtpRequestFormPlaceholder({ email, onEmailChange, onSubmit, loading, me
             className="input w-full" 
             placeholder="you@domain.com"
             value={email}
-            onChange={(event) => onEmailChange(event.target.value)}
+            onChange={(e) => setEmail(e.target.value)}
           />
           
+          {error && (
+            <div className="alert alert-error mt-3 text-xs py-2">
+              <span>{error}</span>
+            </div>
+          )}
+
           <div className="mt-6 flex flex-col gap-4">
-            <button className="btn btn-neutral w-full" type="button" onClick={onSubmit} disabled={loading}>
-              {loading ? 'Sending...' : 'Send OTP Email'}
+            <button className="btn btn-neutral w-full" type="button" onClick={handleSend} disabled={loading}>
+              {loading ? <span className="loading loading-spinner loading-sm"></span> : 'Send OTP Email'}
             </button>
             
-            {/* Informational area for status messages */}
             <div className="alert bg-base-200 border-none text-xs py-2">
               <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" className="stroke-current shrink-0 w-4 h-4">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
               </svg>
-              <span>{message || "We'll send a one-time password to your inbox."}</span>
+              <span>We'll send a one-time password to your inbox.</span>
             </div>
-            {error ? <p className="text-sm text-error">{error}</p> : null}
           </div>
         </div>
       </fieldset>

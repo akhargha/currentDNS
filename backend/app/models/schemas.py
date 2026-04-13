@@ -1,71 +1,108 @@
-from typing import Literal
-
-from pydantic import BaseModel, EmailStr, Field
-
-
-class RequestOtpIn(BaseModel):
-    email: EmailStr
+from pydantic import BaseModel, EmailStr
+from typing import Optional
+from datetime import datetime
 
 
-class VerifyOtpIn(BaseModel):
-    email: EmailStr
-    code: str = Field(min_length=4, max_length=10)
+# ── Signup ──
 
-
-class AuthOut(BaseModel):
-    token: str
-    user_id: str
-    email: EmailStr
-
-
-class SignupStartIn(BaseModel):
+class SignupRequest(BaseModel):
     email: EmailStr
     domain: str
 
 
-class SignupStartOut(BaseModel):
-    domain_id: str
-    domain_matched: bool
-    requires_dns_verification: bool
-    message: str
+class SignupResponse(BaseModel):
+    user_id: str
+    email_matches_domain: bool
+    verification_token: Optional[str] = None
 
 
-class DnsEmailIn(BaseModel):
-    domain_id: str
+class SendVerificationRequest(BaseModel):
+    user_id: str
 
 
-class DnsCheckIn(BaseModel):
-    domain_id: str
+class CheckVerificationRequest(BaseModel):
+    user_id: str
 
 
-class FrequencyIn(BaseModel):
-    domain_id: str
-    interval_minutes: int = Field(ge=360, le=43200)
+class CheckVerificationResponse(BaseModel):
+    verified: bool
+    status: str  # 'pending', 'verified', 'failed'
 
 
-class GithubOrgIn(BaseModel):
-    domain_id: str
-    org_name: str
+class SetFrequencyRequest(BaseModel):
+    user_id: str
+    frequency: str  # '6h','1d','3d','1w'
 
 
-class RunScanIn(BaseModel):
-    domain_id: str | None = None
+# ── Auth ──
+
+class OtpRequestBody(BaseModel):
+    email: EmailStr
 
 
-class MonitoringSettingsPatchIn(BaseModel):
-    domain_id: str
-    monitor_email: EmailStr
-    domain_name: str
-    alerts_enabled: bool
-    interval_minutes: int = Field(ge=360, le=43200)
+class OtpVerifyBody(BaseModel):
+    email: EmailStr
+    code: str
 
 
-class IntegrationResult(BaseModel):
-    integration_type: Literal["bluesky", "keybase", "github_org"]
-    identity_key: str
-    lookup_host: str
-    status: Literal["valid", "broken", "missing"]
-    txt_value: str | None = None
-    first_seen_at: str | None = None
-    last_valid_seen_at: str | None = None
-    broken_at: str | None = None
+class AuthTokenResponse(BaseModel):
+    token: str
+    user_id: str
+    email: str
+    domain: str
+
+
+# ── Dashboard ──
+
+class DashboardSummary(BaseModel):
+    domain: str
+    email: str
+    monitoring_frequency: str
+    github_org: Optional[str]
+    alert_enabled: bool
+    last_scan_at: Optional[str]
+    next_scan_at: Optional[str]
+    total_integrations: int
+    active_count: int
+    broken_count: int
+
+
+class IntegrationItem(BaseModel):
+    id: str
+    type: str
+    status: str
+    first_seen_at: Optional[str]
+    first_seen_txt: Optional[str]
+    last_valid_at: Optional[str]
+    last_valid_txt: Optional[str]
+    broken_at: Optional[str]
+    broken_txt: Optional[str]
+
+
+class TimelineEntry(BaseModel):
+    id: str
+    integration_type: str
+    scanned_at: str
+    status: str
+    txt_record: Optional[str]
+
+
+class ScanResponse(BaseModel):
+    scanned: int
+    results: list[IntegrationItem]
+
+
+# ── Settings ──
+
+class SettingsResponse(BaseModel):
+    email: str
+    domain: str
+    monitoring_frequency: str
+    github_org: Optional[str]
+    alert_enabled: bool
+
+
+class SettingsUpdateRequest(BaseModel):
+    monitoring_frequency: Optional[str] = None
+    github_org: Optional[str] = None
+    alert_enabled: Optional[bool] = None

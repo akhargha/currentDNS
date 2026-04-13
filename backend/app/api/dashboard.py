@@ -1,85 +1,110 @@
-from fastapi import APIRouter, Depends, HTTPException, status
-
+from datetime import datetime, timedelta, timezone
+from fastapi import APIRouter, Depends
 from app.deps import get_current_user
-from app.models.schemas import GithubOrgIn, RunScanIn
-from app.services.integration_service import run_scan_for_domain
-from app.services.supabase_client import get_supabase
+from app.models.schemas import DashboardSummary, IntegrationItem, TimelineEntry, ScanResponse
+from app.services import integration_service
+from app.services.supabase_client import supabase
 
-router = APIRouter(prefix="/dashboard", tags=["dashboard"])
+FREQUENCY_DELTAS = {
+    "6h": timedelta(hours=6),
+    "1d": timedelta(days=1),
+    "3d": timedelta(days=3),
+    "1w": timedelta(weeks=1),
+}
 
-
-def _get_domain_for_user(user_id: str, domain_id: str | None = None) -> dict:
-    supabase = get_supabase()
-    query = supabase.table("domains").select("*").eq("user_id", user_id)
-    if domain_id:
-        query = query.eq("id", domain_id)
-    rows = query.order("created_at", desc=False).limit(1).execute().data
-    if not rows:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Domain not found for user")
-    return rows[0]
+router = APIRouter()
 
 
-@router.get("/summary")
-def get_summary(current_user: dict = Depends(get_current_user)) -> dict:
-    supabase = get_supabase()
-    domain = _get_domain_for_user(current_user["user_id"])
-    pref_rows = supabase.table("monitoring_preferences").select("*").eq("domain_id", domain["id"]).limit(1).execute().data
-    pref = pref_rows[0] if pref_rows else None
-    snapshots = supabase.table("integration_snapshots").select("*").eq("domain_id", domain["id"]).execute().data
-    broken_count = len([item for item in snapshots if item["status"] == "broken"])
-    return {
-        "domain": domain,
-        "monitoring_preference": pref,
-        "integration_count": len(snapshots),
-        "broken_count": broken_count,
-    }
+@router.get("/summary", response_model=DashboardSummary)
+async def summary(user: dict = Depends(get_current_user)):
+    integrations = integration_service.get_integrations(user["id"])
 
-
-@router.get("/integrations")
-def get_integrations(current_user: dict = Depends(get_current_user)) -> dict:
-    supabase = get_supabase()
-    domain = _get_domain_for_user(current_user["user_id"])
-    snapshots = supabase.table("integration_snapshots").select("*").eq("domain_id", domain["id"]).execute().data
-    github_orgs = supabase.table("github_orgs").select("*").eq("domain_id", domain["id"]).execute().data
-    return {"domain": domain, "integrations": snapshots, "github_orgs": github_orgs}
-
-
-@router.post("/github-org")
-def save_github_org(payload: GithubOrgIn, current_user: dict = Depends(get_current_user)) -> dict:
-    supabase = get_supabase()
-    domain = _get_domain_for_user(current_user["user_id"], payload.domain_id)
-    existing = (
-        supabase.table("github_orgs")
-        .select("*")
-        .eq("domain_id", domain["id"])
-        .eq("org_name", payload.org_name)
+    last_scan_row = (
+        supabase.table("scan_history")
+        .select("scanned_at")
+        .eq("user_id", user["id"])
+        .order("scanned_at", desc=True)
         .limit(1)
         .execute()
-        .data
     )
-    if existing:
-        org = existing[0]
-    else:
-        org = supabase.table("github_orgs").insert({"domain_id": domain["id"], "org_name": payload.org_name}).execute().data[0]
-    return {"github_org": org}
 
+    last_scan_at = last_scan_row.data[0]["scanned_at"] if last_scan_row.data else None
 
-@router.get("/timeline")
-def get_timeline(current_user: dict = Depends(get_current_user)) -> dict:
-    supabase = get_supabase()
-    domain = _get_domain_for_user(current_user["user_id"])
-    events = (
-        supabase.table("integration_events")
-        .select("*")
-        .eq("domain_id", domain["id"])
-        .order("occurred_at", desc=True)
-        .execute()
-        .data
+    next_scan_at = None
+    if last_scan_at:
+        freq = user.get("monitoring_frequency", "1d")
+        delta = FREQUENCY_DELTAS.get(freq, timedelta(days=1))
+        last_dt = datetime.fromisoformat(last_scan_at)
+        if last_dt.tzinfo is None:
+            last_dt = last_dt.replace(tzinfo=timezone.utc)
+        next_scan_at = (last_dt + delta).isoformat()
+
+    active = sum(1 for i in integrations if i["status"] == "active")
+    broken = sum(1 for i in integrations if i["status"] == "broken")
+
+    return DashboardSummary(
+        domain=user["domain"],
+        email=user["email"],
+        monitoring_frequency=user.get("monitoring_frequency", "1d"),
+        github_org=user.get("github_org"),
+        alert_enabled=user.get("alert_enabled", True),
+        last_scan_at=last_scan_at,
+        next_scan_at=next_scan_at,
+        total_integrations=len(integrations),
+        active_count=active,
+        broken_count=broken,
     )
-    return {"domain": domain, "events": events}
 
 
-@router.post("/run-scan-now")
-def run_scan_now(payload: RunScanIn, current_user: dict = Depends(get_current_user)) -> dict:
-    domain = _get_domain_for_user(current_user["user_id"], payload.domain_id)
-    return run_scan_for_domain(domain["id"])
+@router.get("/integrations", response_model=list[IntegrationItem])
+async def integrations(user: dict = Depends(get_current_user)):
+    rows = integration_service.get_integrations(user["id"])
+    return [
+        IntegrationItem(
+            id=r["id"],
+            type=r["type"],
+            status=r["status"],
+            first_seen_at=r.get("first_seen_at"),
+            first_seen_txt=r.get("first_seen_txt"),
+            last_valid_at=r.get("last_valid_at"),
+            last_valid_txt=r.get("last_valid_txt"),
+            broken_at=r.get("broken_at"),
+            broken_txt=r.get("broken_txt"),
+        )
+        for r in rows
+    ]
+
+
+@router.post("/scan", response_model=ScanResponse)
+async def scan(user: dict = Depends(get_current_user)):
+    results = integration_service.scan_user(user)
+    items = [
+        IntegrationItem(
+            id=r["id"],
+            type=r["type"],
+            status=r["status"],
+            first_seen_at=r.get("first_seen_at"),
+            first_seen_txt=r.get("first_seen_txt"),
+            last_valid_at=r.get("last_valid_at"),
+            last_valid_txt=r.get("last_valid_txt"),
+            broken_at=r.get("broken_at"),
+            broken_txt=r.get("broken_txt"),
+        )
+        for r in results
+    ]
+    return ScanResponse(scanned=len(items), results=items)
+
+
+@router.get("/timeline", response_model=list[TimelineEntry])
+async def timeline(user: dict = Depends(get_current_user)):
+    rows = integration_service.get_timeline(user["id"])
+    return [
+        TimelineEntry(
+            id=r["id"],
+            integration_type=r["integrations"]["type"] if r.get("integrations") else "unknown",
+            scanned_at=r["scanned_at"],
+            status=r["status"],
+            txt_record=r.get("txt_record"),
+        )
+        for r in rows
+    ]

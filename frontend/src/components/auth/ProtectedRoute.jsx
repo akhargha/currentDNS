@@ -1,12 +1,11 @@
-import { Navigate, useLocation } from 'react-router-dom'
-import { useAuth } from '../../context/AuthContext'
+import { Navigate } from 'react-router-dom'
+import { useAuth } from '../../context/useAuth'
 
 function ProtectedRoute({ children }) {
   const { isAuthenticated } = useAuth()
-  const location = useLocation()
 
   if (!isAuthenticated) {
-    return <Navigate to="/auth/request-otp" replace state={{ from: location.pathname }} />
+    return <Navigate to="/auth/request-otp" replace />
   }
 
   return children

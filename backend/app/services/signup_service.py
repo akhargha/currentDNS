@@ -1,132 +1,104 @@
-from datetime import UTC, datetime, timedelta
-
-from fastapi import HTTPException, status
-
-from app.services.dns_service import resolve_txt_records
-from app.services.email_service import send_dns_verification_email
-from app.services.security import random_token, utc_now
-from app.services.supabase_client import get_supabase
+from app.services.supabase_client import supabase
+from app.services.security import generate_verification_token
+from app.services import dns_service, email_service
 
 
-def _normalize_domain(value: str) -> str:
-    return value.strip().lower().removeprefix("https://").removeprefix("http://").strip("/")
-
-
-def _domain_from_email(email: str) -> str:
-    return email.split("@")[-1].lower().strip()
-
-
-def start_signup(email: str, domain: str) -> dict:
-    supabase = get_supabase()
-    domain_name = _normalize_domain(domain)
-    email_domain = _domain_from_email(email)
-    domain_matched = domain_name == email_domain
-
-    user_rows = supabase.table("users").select("*").eq("email", email).limit(1).execute().data
-    user = user_rows[0] if user_rows else supabase.table("users").insert({"email": email}).execute().data[0]
-
-    existing_domain = (
-        supabase.table("domains")
+def create_user(email: str, domain: str) -> dict:
+    """Create or retrieve user. Returns dict with user data + match info."""
+    existing = (
+        supabase.table("users")
         .select("*")
-        .eq("user_id", user["id"])
-        .eq("domain_name", domain_name)
+        .eq("email", email)
         .limit(1)
         .execute()
-        .data
     )
+    if existing.data:
+        user = existing.data[0]
+        email_domain = email.split("@")[1].lower()
+        return {
+            "user": user,
+            "email_matches_domain": email_domain == domain.lower(),
+            "is_existing": True,
+        }
 
-    payload = {
-        "user_id": user["id"],
-        "domain_name": domain_name,
-        "monitor_email": email,
-        "status": "pending_dns_verification" if not domain_matched else "pending_frequency",
-    }
+    email_domain = email.split("@")[1].lower()
+    matches = email_domain == domain.lower()
 
-    if existing_domain:
-        domain_row = (
-            supabase.table("domains")
-            .update(payload)
-            .eq("id", existing_domain[0]["id"])
-            .execute()
-            .data[0]
-        )
-    else:
-        domain_row = supabase.table("domains").insert(payload).execute().data[0]
+    token = None if matches else generate_verification_token()
 
+    result = supabase.table("users").insert({
+        "email": email,
+        "domain": domain.lower(),
+        "email_verified": matches,
+        "verification_token": token,
+    }).execute()
+
+    user = result.data[0]
     return {
-        "domain_id": domain_row["id"],
-        "domain_matched": domain_matched,
-        "requires_dns_verification": not domain_matched,
-        "message": "Email matches domain" if domain_matched else "DNS verification required for alternate email",
+        "user": user,
+        "email_matches_domain": matches,
+        "is_existing": False,
     }
 
 
-def send_dns_verification(domain_id: str) -> dict:
-    supabase = get_supabase()
-    domain_rows = supabase.table("domains").select("*").eq("id", domain_id).limit(1).execute().data
-    if not domain_rows:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Domain not found")
-    domain_row = domain_rows[0]
+def send_verification_email(user_id: str):
+    user = _get_user(user_id)
+    if not user or not user.get("verification_token"):
+        raise ValueError("No verification token found for user")
 
-    token = random_token(12)
-    verify_host = f"_verifydns.{domain_row['domain_name']}"
-    challenge = {
-        "domain_id": domain_id,
-        "verify_host": verify_host,
-        "expected_token": token,
-        "expires_at": (utc_now() + timedelta(hours=24)).replace(microsecond=0).isoformat(),
-    }
-    supabase.table("domain_verification_challenges").insert(challenge).execute()
-    send_dns_verification_email(domain_row["monitor_email"], domain_row["domain_name"], verify_host, token)
-    return {"verify_host": verify_host, "expected_token": token, "message": "Verification email sent"}
-
-
-def check_dns_verification(domain_id: str) -> dict:
-    supabase = get_supabase()
-    challenges = (
-        supabase.table("domain_verification_challenges")
-        .select("*")
-        .eq("domain_id", domain_id)
-        .is_("verified_at", "null")
-        .order("created_at", desc=True)
-        .limit(1)
-        .execute()
-        .data
+    email_service.send_verification_instructions(
+        user["email"],
+        user["domain"],
+        user["verification_token"],
     )
-    if not challenges:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Challenge not found")
-    challenge = challenges[0]
-    txt_records = resolve_txt_records(challenge["verify_host"])
-    verified = challenge["expected_token"] in txt_records
+
+
+def check_dns_verification(user_id: str) -> dict:
+    user = _get_user(user_id)
+    if not user:
+        return {"verified": False, "status": "failed"}
+
+    if user["email_verified"]:
+        return {"verified": True, "status": "verified"}
+
+    token = user.get("verification_token")
+    if not token:
+        return {"verified": False, "status": "failed"}
+
+    verified = dns_service.check_verification_token(user["domain"], token)
 
     if verified:
-        now_iso = utc_now().isoformat()
-        supabase.table("domain_verification_challenges").update({"verified_at": now_iso}).eq("id", challenge["id"]).execute()
-        supabase.table("domains").update({"status": "pending_frequency"}).eq("id", domain_id).execute()
+        supabase.table("users").update({
+            "email_verified": True,
+            "verification_token": None,
+        }).eq("id", user_id).execute()
+        return {"verified": True, "status": "verified"}
 
-    return {"verified": verified, "txt_records": txt_records}
+    return {"verified": False, "status": "pending"}
 
 
-def set_monitoring_frequency(domain_id: str, interval_minutes: int) -> dict:
-    supabase = get_supabase()
-    now_iso = utc_now().isoformat()
-    next_run = utc_now().timestamp() + interval_minutes * 60
-    next_run_iso = datetime.fromtimestamp(next_run, tz=UTC).isoformat()
+def set_frequency(user_id: str, frequency: str):
+    supabase.table("users").update({
+        "monitoring_frequency": frequency,
+    }).eq("id", user_id).execute()
 
-    pref_rows = (
-        supabase.table("monitoring_preferences").select("*").eq("domain_id", domain_id).limit(1).execute().data
-    )
-    payload = {
-        "domain_id": domain_id,
-        "interval_minutes": interval_minutes,
-        "next_run_at": next_run_iso,
-        "alerts_enabled": True,
-        "updated_at": now_iso,
-    }
-    if pref_rows:
-        pref = supabase.table("monitoring_preferences").update(payload).eq("id", pref_rows[0]["id"]).execute().data[0]
-    else:
-        pref = supabase.table("monitoring_preferences").insert(payload).execute().data[0]
+    _ensure_integrations_exist(user_id)
 
-    supabase.table("domains").update({"status": "active"}).eq("id", domain_id).execute()
-    return {"message": "Monitoring frequency saved", "preference": pref}
+
+def _get_user(user_id: str) -> dict | None:
+    result = supabase.table("users").select("*").eq("id", user_id).limit(1).execute()
+    return result.data[0] if result.data else None
+
+
+def _ensure_integrations_exist(user_id: str):
+    """Create integration rows for bluesky, keybase, github if they don't exist."""
+    existing = supabase.table("integrations").select("type").eq("user_id", user_id).execute()
+    existing_types = {row["type"] for row in existing.data}
+
+    for itype in ("bluesky", "keybase", "github"):
+        if itype not in existing_types:
+            supabase.table("integrations").insert({
+                "user_id": user_id,
+                "type": itype,
+                "status": "not_found",
+            }).execute()
