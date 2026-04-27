@@ -10,6 +10,12 @@ function IntegrationGridPlaceholder({ integrations }) {
     )
   }
 
+  const sortedIntegrations = [...integrations].sort((a, b) => {
+    const aPriority = a.status === 'active' ? 0 : 1
+    const bPriority = b.status === 'active' ? 0 : 1
+    return aPriority - bPriority
+  })
+
   return (
     <section className="w-full space-y-6">
       
@@ -21,7 +27,7 @@ function IntegrationGridPlaceholder({ integrations }) {
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        {integrations.map((integration) => (
+        {sortedIntegrations.map((integration) => (
           <Link 
             key={integration.id} 
             to="/dashboard/timeline" 
