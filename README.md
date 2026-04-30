@@ -91,6 +91,6 @@ Then trigger a redeploy for the static site.
 - Root directory: `frontend`
 - Build command: `npm ci && npm run build`
 - Publish directory: `dist`
-- Plan: **Free**
+- Plan: not set in Blueprint (Render static-site pricing applies automatically)
 
 Set the same environment variables described above.
