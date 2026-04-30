@@ -21,8 +21,9 @@ services:
       - key: SENDGRID_FROM_EMAIL
         sync: false
 
-  - type: static
+  - type: web
     name: currentdns-frontend
+    runtime: static
     plan: free
     rootDir: frontend
     buildCommand: npm ci && npm run build
